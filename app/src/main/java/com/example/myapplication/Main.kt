@@ -6,48 +6,64 @@ enum class GameState {
     INITIALIZING, RUNNING, FINISHED
 }
 class Main() {
-    val deck = Deck()
-    val table = Table()
-    val player = Player()
-    val computerPlayer = ComputerPlayer()
-    var gameState = GameState.INITIALIZING
-    val players = mutableListOf<Participant>()
+    private val deck = Deck()
+    private val table = Table()
+    private val player = Player()
+    private val computerPlayer = ComputerPlayer()
+    private val players = mutableListOf<Participant>()
+    private var gameState = GameState.INITIALIZING
 
-    fun gameLoop() {
+    private fun gameLoop() {
         var turnOrderIndex = 0
         while (this.gameState != GameState.FINISHED) {
+
+            table.printTableInfo()
+            if (this.deck.deck.isEmpty() && this.player.checkIfEmptyHand() && this.computerPlayer.checkIfEmptyHand()) {
+                println("Game Over")
+                this.gameState = GameState.FINISHED
+                continue
+            }
             val turn = turnOrderIndex % this.players.size
             if (this.players[turn].checkIfEmptyHand()) {
                 try {
                     this.players[turn].fillHand(this.deck.drawFromDeck(6))
                 } catch (e: Exception) {
                     this.gameState = GameState.FINISHED
-                    break
+                    continue
                 }
             }
-            this.table.addToCardPile(players[turn].playCard())
+            val playedCard = players[turn].playCard()
+            if (playedCard == "exit"){
+                println("Game Over")
+                this.gameState = GameState.FINISHED
+                continue
+            }
+
+            this.table.addToCardPile(playedCard)
             turnOrderIndex++
 
-            table.printTableInfo()
-            if (this.deck.deck.isEmpty()) {
-                this.gameState = GameState.FINISHED
-            }
+            println("")
+
+
         }
 
     }
 
-    fun setupGame() {
+    private fun setupGame() {
         println("Indigo Card Game")
         this.deck.resetDeck()
         this.deck.shuffleDeck()
         this.isPlayerStarting()
         this.dealCards()
+        this.table.addInitialCards(this.deck.drawFromDeck(4))
+        this.gameState = GameState.RUNNING
+        this.gameLoop()
 
 
 
     }
 
-    fun isPlayerStarting() {
+    private fun isPlayerStarting() {
         var input: String
         while (true) {
             println("Play first?")
@@ -57,11 +73,12 @@ class Main() {
                     "yes" -> this.players.addAll(mutableListOf(this.player, this.computerPlayer))
                     "no" -> this.players.addAll(mutableListOf(this.computerPlayer, this.player))
                 }
+                break
             }
         }
     }
 
-    fun dealCards() {
+    private fun dealCards() {
         for (player in players) {
             player.fillHand(this.deck.drawFromDeck(6))
         }
@@ -93,34 +110,35 @@ open class Participant() {
 }
 
 class Player() : Participant() {
-    fun showCards() {
+    private fun showCards() {
         print("Cards in hand: ")
         for (i in 0 until this.hand.size) {
-            print("$i)${this.hand[i]} ")
+            print("${i + 1})${this.hand[i]} ")
         }
+        println()
     }
 
     override fun playCard(): String {
-        var cardIndex: String
+        var card: String
+        var cardIndex: Int
         this.showCards()
         while (true) {
-            println("Choose a card to play (1-${this.hand.size})")
+            println("Choose a card to play (1-${this.hand.size}):")
             try {
-                // TODO: EXIT MUSS IRGENDWIE IMPLEMENTIERT WERDEN.
-                cardIndex = readLine()!!
-                if (cardIndex == "exit") {
-                    return cardIndex
+                card = readLine()!!
+                if (card == "exit") {
+                    return card
                 }
+                cardIndex = card.toInt()
             } catch (e: NumberFormatException) {
                 continue
             }
             if (cardIndex in 1..this.hand.size) {
-                cardIndex - 1
-                break
+                return this.hand.removeAt(cardIndex - 1 )
             }
 
         }
-        return this.hand.removeAt(cardIndex)
+
     }
 
 }
@@ -134,7 +152,7 @@ class ComputerPlayer() : Participant() {
 }
 
 class Table() {
-    val cardPile = mutableListOf<String>()
+    private val cardPile = mutableListOf<String>()
 
     fun printTableInfo() {
         println("${cardPile.size} cards on the table, and the top card is ${cardPile[cardPile.lastIndex]}")
@@ -143,16 +161,22 @@ class Table() {
     fun addToCardPile(playCard: String) {
         this.cardPile.add(playCard)
     }
+
+    fun addInitialCards(fourCards: MutableList<String>) {
+        println("Initial cards on the table: ${fourCards.joinToString(" ")}")
+        println("")
+        this.cardPile.addAll(fourCards)
+    }
 }
 
 
 
 class Deck() {
-    val ranks = listOf("A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
-    val suits = listOf("♦", "♥", "♠", "♣")
+    private val ranks = listOf("A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
+    private val suits = listOf("♦", "♥", "♠", "♣")
     val deck = mutableListOf<String>()
 
-    fun generateNewDeck() {
+    private fun generateNewDeck() {
         this.deck.clear()
         for (suit in suits) {
             for (rank in ranks) {
@@ -163,7 +187,6 @@ class Deck() {
 
     fun resetDeck() {
         generateNewDeck()
-        println("Card deck is reset.")
     }
 
     fun shuffleDeck() {
@@ -173,7 +196,6 @@ class Deck() {
             val card = this.deck.removeAt(index2)
             this.deck.add(index, card)
         }
-        println("Card deck is shuffled.")
 
     }
 
@@ -196,13 +218,11 @@ class Deck() {
         }
         if (drawnCards.size > 0) {
             return drawnCards
+        } else {
+            throw Exception("No cards drawn despite checking for value > 0")
         }
 
 
-    }
-
-    fun exit() {
-        println("Bye")
     }
 
 
@@ -212,5 +232,4 @@ class Deck() {
 fun main() {
     val indigo = Main()
     indigo.startGame()
-
 }
