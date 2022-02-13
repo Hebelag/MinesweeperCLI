@@ -5,20 +5,64 @@ import kotlin.random.Random
 enum class GameState {
     INITIALIZING, RUNNING, FINISHED
 }
-class Main() {
+
+class Constants {
+    companion object {
+        val COUNTED_CARDS = listOf<String>("10", "J", "Q", "K", "A")
+    }
+}
+
+class Main {
     private val deck = Deck()
     private val table = Table()
     private val player = Player()
     private val computerPlayer = ComputerPlayer()
     private val players = mutableListOf<Participant>()
     private var gameState = GameState.INITIALIZING
+    private var lastWinner: Participant? = null
+    private var starter: Participant? = null
+
+    private fun printIfWon(participant: Participant) {
+        when (participant) {
+            is Player -> println("Player wins cards")
+            is ComputerPlayer -> println("Computer wins cards")
+            else -> throw Exception("Current participant is neither Player nor Computer?")
+        }
+    }
+
+    private fun printStats() {
+        println("Score: ${this.player.name} ${this.player.points} - ${this.computerPlayer.name} ${this.computerPlayer.points}")
+        println("Cards: ${this.player.name} ${this.player.cardsWon.size} - ${this.computerPlayer.name} ${this.computerPlayer.cardsWon.size}")
+    }
+    private fun checkMaxCards() {
+        var maxCardPlayer: Participant? = null
+        var maxCards: Int = -1
+        for (player in players) {
+            if (player.cardsWon.size > maxCards) {
+                maxCardPlayer = player
+                maxCards = player.cardsWon.size
+            } else if (player.cardsWon.size == maxCards){
+                maxCardPlayer = this.starter
+                break
+            }
+        }
+        maxCardPlayer?.wonMaxCards()
+    }
+
+    private fun remainingCardsToLastWinner(cardPile: MutableList<String>) = this.lastWinner?.addCardsWon(cardPile)
+
 
     private fun gameLoop() {
+
         var turnOrderIndex = 0
         while (this.gameState != GameState.FINISHED) {
-
             table.printTableInfo()
+
             if (this.deck.deck.isEmpty() && this.player.checkIfEmptyHand() && this.computerPlayer.checkIfEmptyHand()) {
+                this.remainingCardsToLastWinner(this.table.cardPile)
+                this.checkMaxCards()
+                this.players.forEach { it.countPoints() }
+                this.printStats()
                 println("Game Over")
                 this.gameState = GameState.FINISHED
                 continue
@@ -39,13 +83,29 @@ class Main() {
                 continue
             }
 
-            this.table.addToCardPile(playedCard)
-            turnOrderIndex++
 
+            if (this.table.cardPile.isNotEmpty()) {
+                if (playedCard.substring(0, playedCard.length - 1) == this.table.cardPile.last().substring(0, playedCard.length - 1) || playedCard.last() == this.table.cardPile.last().last()) {
+                    this.table.addToCardPile(playedCard)
+                    this.lastWinner = players[turn]
+                    players[turn].addCardsWon(this.table.cardPile)
+                    this.table.cardPile.clear()
+                    this.printIfWon(players[turn])
+                    this.players.forEach { it.countPoints() }
+                    this.printStats()
+
+                } else {
+                        this.table.addToCardPile(playedCard)
+                }
+            } else {
+                this.table.addToCardPile(playedCard)
+            }
+            turnOrderIndex++
             println("")
 
-
         }
+
+
 
     }
 
@@ -58,8 +118,7 @@ class Main() {
         this.table.addInitialCards(this.deck.drawFromDeck(4))
         this.gameState = GameState.RUNNING
         this.gameLoop()
-
-
+        this.players.forEach { it.countPoints() }
 
     }
 
@@ -70,8 +129,14 @@ class Main() {
             input = readLine()!!.lowercase()
             if (input == "yes" || input == "no") {
                 when (input) {
-                    "yes" -> this.players.addAll(mutableListOf(this.player, this.computerPlayer))
-                    "no" -> this.players.addAll(mutableListOf(this.computerPlayer, this.player))
+                    "yes" -> {
+                        this.starter = this.player
+                        this.players.addAll(mutableListOf(this.player, this.computerPlayer))
+                    }
+                    "no" -> {
+                        this.starter = this.computerPlayer
+                        this.players.addAll(mutableListOf(this.computerPlayer, this.player))
+                    }
                 }
                 break
             }
@@ -90,8 +155,35 @@ class Main() {
     }
 }
 
-open class Participant() {
+open class Participant(val name: String) {
     val hand: MutableList<String> = mutableListOf<String>()
+    val cardsWon: MutableList<String> = mutableListOf<String>()
+    var points: Int = 0
+    var maxCards: Boolean = false
+
+    fun countPoints() {
+        var tempPoints = 0
+        for (card in cardsWon) {
+            var rank = card.substring(0, card.length - 1)
+            if (rank in Constants.COUNTED_CARDS) {
+                tempPoints++
+            }
+        }
+        tempPoints += if (this.maxCards) 3 else 0
+        this.points = tempPoints
+    }
+
+    fun wonMaxCards() {
+        this.maxCards = true
+    }
+
+    fun getScoreString(): String {
+        return "${this.name} ${this.points}"
+    }
+
+    fun getCardsWonString(): String = "$name ${this.cardsWon.size}"
+
+    fun addCardsWon(cards: MutableList<String>) = cards.forEach { cardsWon.add(it) }
 
     open fun playCard(): String {
         return this.hand.removeAt(this.hand.lastIndex)
@@ -109,7 +201,7 @@ open class Participant() {
 
 }
 
-class Player() : Participant() {
+class Player() : Participant("Player") {
     private fun showCards() {
         print("Cards in hand: ")
         for (i in 0 until this.hand.size) {
@@ -136,14 +228,12 @@ class Player() : Participant() {
             if (cardIndex in 1..this.hand.size) {
                 return this.hand.removeAt(cardIndex - 1 )
             }
-
         }
-
     }
-
 }
 
-class ComputerPlayer() : Participant() {
+class ComputerPlayer() : Participant("Computer") {
+
     override fun playCard(): String {
         val playedCard = this.hand.removeAt(this.hand.lastIndex)
         println("Computer plays $playedCard")
@@ -152,10 +242,14 @@ class ComputerPlayer() : Participant() {
 }
 
 class Table() {
-    private val cardPile = mutableListOf<String>()
+    val cardPile = mutableListOf<String>()
 
     fun printTableInfo() {
-        println("${cardPile.size} cards on the table, and the top card is ${cardPile[cardPile.lastIndex]}")
+        if (cardPile.isEmpty()) {
+            println("No cards on the table")
+        } else {
+            println("${cardPile.size} cards on the table, and the top card is ${cardPile[cardPile.lastIndex]}")
+        }
     }
 
     fun addToCardPile(playCard: String) {
@@ -221,13 +315,8 @@ class Deck() {
         } else {
             throw Exception("No cards drawn despite checking for value > 0")
         }
-
-
     }
-
-
 }
-
 
 fun main() {
     val indigo = Main()
