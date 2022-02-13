@@ -1,99 +1,87 @@
 package com.example.myapplication.passwordGenerator
 import kotlin.random.Random
 
-class Main {
+fun main() {
+    val settings = readLine()!!.split(" ")
+    val uppercase = settings[0].toInt()
+    val lowercase = settings[1].toInt()
+    val digits = settings[2].toInt()
+    val symbolCount = settings[3].toInt()
+
+    val password = mutableListOf<Char>()
+    fun shuffleCharacters(index: Int) {
+        val character = password.removeAt(index)
+        password.add(Random.nextInt(0, password.size - 1), character)
+    }
+
+    fun shuffleCharactersRandom() {
+        for (i in 0..10) {
+            password.shuffle()
+        }
+    }
+
+    fun exchangeCharInTwoPw() {
+        var tempChar = password.removeAt(0)
+        tempChar = when (tempChar) {
+            in 'A'..'Z' -> tempChar.lowercaseChar()
+            in 'a'..'Z' -> tempChar.uppercaseChar()
+            in '0'..'9' -> Random.nextInt(48, 57).toChar()
+            else -> Random.nextInt(48, 57).toChar()
+        }
+        password.add(0, tempChar)
+    }
+
+    fun checkForDuplicates(): Boolean {
+        if (password.size > 2) {
+            for (i in 1 until password.size - 1) {
+                if (password[i] == password[i - 1]) {
+                    shuffleCharacters(i)
+                    return true
+                } else if (password[i] == password[i + 1]) {
+                    shuffleCharacters(i)
+                    return true
+                }
+            }
+            return false
+        } else if (password.size == 2 && password[0] == password[1]) {
+            exchangeCharInTwoPw()
+            return true
+
+        } else {
+            return false
+        }
+    }
+    repeat(uppercase) {
+        password.add(Random.nextInt(65, 90).toChar())
+    }
+    repeat(lowercase) {
+        password.add(Random.nextInt(97, 122).toChar())
+    }
+    repeat(digits) {
+        password.add(Random.nextInt(48, 57).toChar())
+    }
+    repeat(symbolCount - uppercase - lowercase - digits) {
+        var choice = Random.nextInt(1, 3)
+        when (choice) {
+            1 -> password.add(Random.nextInt(97, 122).toChar())
+            2 -> password.add(Random.nextInt(65, 90).toChar())
+            3 -> password.add(Random.nextInt(48, 57).toChar())
+        }
+    }
+
+    repeat(5) {
+        if (password.size > 1) {
+            shuffleCharactersRandom()
+        }
+    }
+
+    while(true) {
+        if (!checkForDuplicates()) {
+            break
+        }
+    }
+
+    println(password.joinToString(""))
+
 }
 
-    fun main() {
-        val settings = readLine()!!.split(" ")
-        val uppercase = settings[0].toInt()
-        val lowercase = settings[1].toInt()
-        val digits = settings[2].toInt()
-        val symbolCount = settings[3].toInt()
-
-        val password = mutableListOf<Char>()
-        fun shuffleCharacters(second: Int) {
-            val character = password.removeAt(second)
-
-            password.add(Random.nextInt(0, password.size - 1), character)
-        }
-        fun shuffleCharactersRandom() {
-            for (i in 0..10) {
-                password.shuffle()
-            }
-        }
-
-        if (uppercase > 0){
-            for (i in 0 until uppercase) {
-                var character: Char
-                character = Random.nextInt(65, 90).toChar()
-
-                password.add(character)
-            }
-        }
-        println(password.joinToString(""))
-
-        if (lowercase > 0){
-            for (i in 0 until lowercase) {
-                val character = Random.nextInt(65, 90).toChar().lowercaseChar()
-                password.add(character)
-            }
-        }
-        println(password.joinToString(""))
-        if (digits > 0){
-            for (i in 0 until digits) {
-                val character = Random.nextInt(48, 57).toChar()
-                password.add(character)
-            }
-        }
-
-        println(password.joinToString(""))
-        if (password.size < symbolCount) {
-            for (i in 0 until symbolCount - password.size) {
-                password.add(Random.nextInt(33, 126).toChar())
-            }
-        }
-        println(password.joinToString(""))
-        for (i in 1..5){
-            println("Random Shuffle")
-            shuffleCharactersRandom()
-            println(password.joinToString(""))
-        }
-
-
-        while (true){
-            if (password.size > 1){
-                if (password[0] == password[1]) {
-                    println(password.joinToString(""))
-                    shuffleCharacters(0)
-                    continue
-                }
-                if (password[password.lastIndex] == password[password.lastIndex - 1]) {
-                    println(password.joinToString(""))
-                    shuffleCharacters(password.lastIndex)
-                    continue
-                }
-
-                for (i in 1 until password.size - 1) {
-                    if (password[i] == password[i-1]){
-                        println(password.joinToString(""))
-                        shuffleCharacters(i)
-                        continue
-                    } else if (password[i] == password[i+1]) {
-                        println(password.joinToString(""))
-                        shuffleCharacters(i)
-                        continue
-                    }
-                }
-                break
-            } else {
-                break
-            }
-
-        }
-
-        println(password.joinToString(""))
-
-
-
-    }
