@@ -126,7 +126,6 @@ class Main {
         this.gameState = GameState.RUNNING
         this.gameLoop()
         this.players.forEach { it.countPoints() }
-
     }
 
     private fun isPlayerStarting() {
