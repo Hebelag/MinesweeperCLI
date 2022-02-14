@@ -76,7 +76,14 @@ class Main {
                     continue
                 }
             }
-            val playedCard = players[turn].playCard()
+            val playedCard = when (players[turn]) {
+                is Player -> this.player.playCard()
+                is ComputerPlayer -> {
+                    this.computerPlayer.showCards()
+                    this.computerPlayer.playCard(this.table.cardPile.lastOrNull())
+                }
+                else -> "exit"
+            }
             if (playedCard == "exit"){
                 println("Game Over")
                 this.gameState = GameState.FINISHED
@@ -177,12 +184,6 @@ open class Participant(val name: String) {
         this.maxCards = true
     }
 
-    fun getScoreString(): String {
-        return "${this.name} ${this.points}"
-    }
-
-    fun getCardsWonString(): String = "$name ${this.cardsWon.size}"
-
     fun addCardsWon(cards: MutableList<String>) = cards.forEach { cardsWon.add(it) }
 
     open fun playCard(): String {
@@ -233,9 +234,79 @@ class Player() : Participant("Player") {
 }
 
 class ComputerPlayer() : Participant("Computer") {
+    var candidateCards: MutableList<String> = mutableListOf()
+    fun isCandidateCard(topCard: String, playCard: String): Boolean {
+        val topCardRank = topCard.substring(0, topCard.length - 1)
+        val topCardSuit = topCard.last()
+        return playCard.substring(0, topCard.length - 1) == topCardRank || playCard.last() == topCardSuit
+    }
 
-    override fun playCard(): String {
-        val playedCard = this.hand.removeAt(this.hand.lastIndex)
+    fun showCards() {
+        println(this.hand.joinToString(" "))
+    }
+
+    fun isLastCard(): Boolean = this.hand.size == 1
+
+    fun countCandidateCards(): Int = this.candidateCards.size
+
+    fun setCandidateCards(topCard: String) {
+        this.candidateCards = this.hand.filter { isCandidateCard(topCard, it) }.toMutableList()
+    }
+
+    fun getCandidateCardIndex(): List<Int> {
+        return this.candidateCards.map { this.hand.indexOf(it) }
+    }
+
+    fun throwCuzEmptyPile(): String {
+        return when {
+            this.getSameSuits(this.hand).isNotEmpty() -> this.getSameSuits(this.hand).random()
+            this.getSameRanks(this.hand).isNotEmpty() -> this.getSameRanks(this.hand).random()
+            else -> this.hand.random()
+        }
+    }
+
+    fun getSameSuits(cardCollection: MutableList<String>): MutableSet<String> {
+        val sameSuit = mutableSetOf<String>()
+        for (card in cardCollection) {
+            for (card2 in cardCollection) {
+                if (card != card2 && card.last() == card2.last()) {
+                    sameSuit.add(card)
+                }
+            }
+        }
+        return sameSuit
+    }
+
+    fun getSameRanks(cardCollection: MutableList<String>): MutableSet<String> {
+        val sameRank = mutableSetOf<String>()
+        for (card in cardCollection) {
+            for (card2 in cardCollection) {
+                if (card != card2 && card.substring(0, card.length - 1) == card2.substring(0, card.length - 1)) {
+                    sameRank.add(card)
+                }
+            }
+        }
+        return sameRank
+    }
+    fun throwMultipleCandidates(): String {
+        return when {
+            this.getSameSuits(this.candidateCards).isNotEmpty() -> this.getSameSuits(this.candidateCards).random()
+            this.getSameRanks(this.candidateCards).isNotEmpty() -> this.getSameRanks(this.candidateCards).random()
+            else -> this.candidateCards.random()
+        }
+    }
+    fun playCard(topCard: String?): String {
+        if (topCard != null) {
+            this.setCandidateCards(topCard)
+        }
+        val playedCard = when {
+            isLastCard() -> this.hand.removeAt(this.hand.lastIndex)
+            countCandidateCards() == 1 -> this.hand.removeAt(this.getCandidateCardIndex().first())
+            topCard == null -> this.hand.removeAt(this.hand.indexOf(this.throwCuzEmptyPile()))
+            countCandidateCards() == 0 -> this.hand.removeAt(this.hand.indexOf(this.throwCuzEmptyPile()))
+            countCandidateCards() >= 2 -> this.hand.removeAt(this.hand.indexOf(this.throwMultipleCandidates()))
+            else -> "exit"
+        }
         println("Computer plays $playedCard")
         return playedCard
     }
