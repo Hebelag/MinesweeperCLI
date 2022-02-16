@@ -8,9 +8,25 @@ enum class GameState {
     STOPPED, STARTED
 }
 
+class FlashCard(var name: String, var definition: String, var mistakes: Int) {
+}
+class Logger{
+    val loggingList: MutableList<String> = mutableListOf()
+
+    fun logAndPrint(string: String) {
+        loggingList.add(string)
+        println(string)
+    }
+
+    fun logAndSend(string: String): String {
+        loggingList.add("> $string")
+        return string
+    }
+}
 class Main {
-    val flashcards: MutableMap<String, String> = mutableMapOf()
+    val flashcards: MutableList<FlashCard> = mutableListOf()
     var gameState: GameState = GameState.STARTED
+    val logger: Logger = Logger()
 
     fun performAction(action: String) {
         when (action) {
@@ -20,105 +36,149 @@ class Main {
             "export" -> exportCards()
             "ask" -> askCards()
             "exit" -> exitGame()
+            "log" -> log()
+            "hardest card" -> hardestCard()
+            "reset stats" -> resetStats()
         }
     }
 
     fun addCard() {
-        println("The card:")
-        val card: String = readLine()!!
-        if (flashcards.containsKey(card)) {
-            println("The card \"${card}\" already exists.")
+        logger.logAndPrint("The card:")
+        val card: String = logger.logAndSend(readLine()!!)
+        if (flashcards.any { it.name == card }) {
+            logger.logAndPrint("The card \"${card}\" already exists.")
             return
         }
-        println("The definition of the card:")
+        logger.logAndPrint("The definition of the card:")
 
-        val definition: String = readLine()!!
-        if (flashcards.containsValue(definition)) {
-            println("The definition \"${definition}\" already exists.")
+        val definition: String = logger.logAndSend(readLine()!!)
+        if (flashcards.any {definition == it.definition}) {
+            logger.logAndPrint("The definition \"${definition}\" already exists.")
             return
         }
-        flashcards[card] = definition
-        println("The pair (\"${card}\":\"${definition}\") has been added.")
+        flashcards.add(FlashCard(card, definition, 0))
+        logger.logAndPrint("The pair (\"${card}\":\"${definition}\") has been added.")
 
     }
 
     fun addCardFromImport(flashCard: List<String>) {
-        flashcards[flashCard.first()] = flashCard.last()
+        if (flashcards.any {it.name == flashCard[0]}) {
+            flashcards.removeAll(flashcards.filter { it.name == flashCard[0] })
+        }
+        flashcards.add(FlashCard(flashCard[0], flashCard[1], flashCard[2].toInt()))
     }
 
     fun removeCard() {
-        println("Which card?")
-        val cardToRemove = readLine()!!
-        if (!flashcards.containsKey(cardToRemove)) {
-            println("Can't remove \"${cardToRemove}\": there is no such card.")
+        logger.logAndPrint("Which card?")
+        val cardToRemove = logger.logAndSend(readLine()!!)
+        if (!flashcards.any {cardToRemove == it.name}) {
+            logger.logAndPrint("Can't remove \"${cardToRemove}\": there is no such card.")
             return
         }
-        flashcards.remove(cardToRemove)
-        println("The card has been removed.")
+        flashcards.removeAll(flashcards.filter { it.name == cardToRemove })
+        logger.logAndPrint("The card has been removed.")
     }
 
     fun importCards() {
-        println("File name:")
-        val fileName = readLine()!!
+        logger.logAndPrint("File name:")
+        val fileName = logger.logAndSend(readLine()!!)
         try {
             val fileDest = File(fileName)
-            val fileContent = fileDest.readLines().forEach { line -> addCardFromImport(line.split(" ")) }
+            fileDest.readLines().forEach { line -> addCardFromImport(line.split(",,,")) }
             val flashCardCount = fileDest.readLines().size
-            println("$flashCardCount cards have been loaded.")
+            logger.logAndPrint("$flashCardCount cards have been loaded.")
         } catch (e: FileNotFoundException) {
-            println("File not found.")
+            logger.logAndPrint("File not found.")
         }
 
     }
 
     fun exportCards() {
-        println("File name:")
-        val fileName = readLine()!!
+        logger.logAndPrint("File name:")
+        val fileName = logger.logAndSend(readLine()!!)
         try {
             val fileDest = File(fileName)
             fileDest.writeText("")
-            flashcards.forEach {fileDest.appendText("${it.key} ${it.value}\n")}
-            println("${flashcards.size} cards have been saved.")
+            flashcards.forEach {fileDest.appendText("${it.name},,,${it.definition},,,${it.mistakes}\n")}
+            logger.logAndPrint("${flashcards.size} cards have been saved.")
         } catch (e: Exception) {
-            println(e.message)
+            logger.logAndPrint(e.message.toString())
 
         }
     }
 
     fun askCards() {
-        println("How many times to ask?")
-        val askCount = readLine()!!.toInt()
+        logger.logAndPrint("How many times to ask?")
+        val askCount = logger.logAndSend(readLine()!!).toInt()
         repeat(askCount) {
-            val flashCard = flashcards.entries.shuffled().first()
-            println("Print the definition of \"${flashCard.key}\"")
-            val userDefinition = readLine()!!
+            val flashCard = flashcards.shuffled().first()
+            logger.logAndPrint("Print the definition of \"${flashCard.name}\"")
+            val userDefinition = logger.logAndSend(readLine()!!)
             when {
-                userDefinition == flashCard.value -> {
-                    println("Correct!")
+                userDefinition == flashCard.definition -> {
+                    logger.logAndPrint("Correct!")
                 }
-                flashcards.containsValue(userDefinition) -> {
-                    val correctDefinition = flashcards.filterValues { it == userDefinition }
-                    println("Wrong. The right answer is \"${flashCard.value}\", but your definition is correct for \"${correctDefinition.keys.joinToString(", ")}\".")
+                flashcards.any {userDefinition == it.definition} -> {
+                    val correctDefinition = flashcards.filter { it.definition == userDefinition }.joinToString(", ") {it.name}
+                    logger.logAndPrint("Wrong. The right answer is \"${flashCard.definition}\", but your definition is correct for \"${correctDefinition}\".")
+                    flashcards.first { it.name == flashCard.name }.mistakes += 1
                 }
                 else -> {
-                    println("Wrong. The right answer is \"${flashCard.value}\".")
+                    logger.logAndPrint("Wrong. The right answer is \"${flashCard.definition}\".")
+                    flashcards.first { it.name == flashCard.name }.mistakes += 1
                 }
             }
         }
     }
 
     fun exitGame() {
-        println("Bye bye!")
+        logger.logAndPrint("Bye bye!")
         gameState = GameState.STOPPED
+    }
+
+    fun log() {
+        logger.logAndPrint("File name:")
+        val fileName = logger.logAndSend(readLine()!!)
+        try {
+            val fileDest = File(fileName)
+            fileDest.writeText("")
+            logger.loggingList.forEach {fileDest.appendText("$it\n")}
+            logger.logAndPrint("The log has been saved.")
+        } catch (e: Exception) {
+            logger.logAndPrint(e.message.toString())
+        }
+    }
+
+    fun hardestCard() {
+        val hardestCards = flashcards.filter{ x -> x.mistakes == flashcards.maxByOrNull { it.mistakes }?.mistakes}.filter{it.mistakes != 0}
+        when (hardestCards.size) {
+            0 -> logger.logAndPrint("There are no cards with errors")
+            1 -> {
+                logger.logAndPrint("The hardest card is \"${hardestCards.first().name}\". You have ${hardestCards.first().mistakes} errors answering it.")
+            }
+            else -> {
+                val hardestCardsString = hardestCards.joinToString(", ") { "\"${it.name}\"" }
+                logger.logAndPrint("The hardest cards are $hardestCardsString. You have ${hardestCards.first().mistakes} errors answering them.")
+            }
+        }
+    }
+
+    fun resetStats() {
+        flashcards.forEach { it.mistakes = 0 }
+        logger.logAndPrint("Card statistics have been reset.")
+    }
+
+    fun gameLoop() {
+        while (gameState != GameState.STOPPED) {
+            logger.logAndPrint("Input the action (add, remove, import, export, ask, exit, log, hardest card, reset stats):")
+            val inputAction = logger.logAndSend(readLine()!!)
+            performAction(inputAction)
+
+        }
     }
 }
 
 fun main() {
     val game = Main()
-    while (game.gameState != GameState.STOPPED) {
-        println("Input the action (add, remove, import, export, ask, exit):")
-        val inputAction = readLine()!!
-        game.performAction(inputAction)
-
-    }
+    game.gameLoop()
 }
