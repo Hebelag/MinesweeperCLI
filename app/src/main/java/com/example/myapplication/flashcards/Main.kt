@@ -23,17 +23,27 @@ class Logger{
         return string
     }
 }
-class Main {
+class Main(args: Array<String>) {
     val flashcards: MutableList<FlashCard> = mutableListOf()
     var gameState: GameState = GameState.STARTED
     val logger: Logger = Logger()
-
+    var exitSavePath: String? = null
+    init {
+        if ("-import" in args) {
+            val fileName = args[args.indexOf("-import") + 1]
+            importCards(fileName)
+        }
+        if ("-export" in args) {
+            val fileName = args[args.indexOf("-export") + 1]
+            exitSavePath = fileName
+        }
+    }
     fun performAction(action: String) {
         when (action) {
             "add" -> addCard()
             "remove" -> removeCard()
-            "import" -> importCards()
-            "export" -> exportCards()
+            "import" -> importCardsPrompt()
+            "export" -> exportCardsPrompt()
             "ask" -> askCards()
             "exit" -> exitGame()
             "log" -> log()
@@ -79,9 +89,7 @@ class Main {
         logger.logAndPrint("The card has been removed.")
     }
 
-    fun importCards() {
-        logger.logAndPrint("File name:")
-        val fileName = logger.logAndSend(readLine()!!)
+    fun importCards(fileName: String) {
         try {
             val fileDest = File(fileName)
             fileDest.readLines().forEach { line -> addCardFromImport(line.split(",,,")) }
@@ -90,12 +98,15 @@ class Main {
         } catch (e: FileNotFoundException) {
             logger.logAndPrint("File not found.")
         }
-
     }
 
-    fun exportCards() {
+    fun importCardsPrompt() {
         logger.logAndPrint("File name:")
         val fileName = logger.logAndSend(readLine()!!)
+        importCards(fileName)
+    }
+
+    fun exportCards(fileName: String) {
         try {
             val fileDest = File(fileName)
             fileDest.writeText("")
@@ -105,6 +116,12 @@ class Main {
             logger.logAndPrint(e.message.toString())
 
         }
+    }
+
+    fun exportCardsPrompt() {
+        logger.logAndPrint("File name:")
+        val fileName = logger.logAndSend(readLine()!!)
+        exportCards(fileName)
     }
 
     fun askCards() {
@@ -132,6 +149,9 @@ class Main {
     }
 
     fun exitGame() {
+        if (exitSavePath != null) {
+            exportCards(exitSavePath!!)
+        }
         logger.logAndPrint("Bye bye!")
         gameState = GameState.STOPPED
     }
@@ -173,12 +193,11 @@ class Main {
             logger.logAndPrint("Input the action (add, remove, import, export, ask, exit, log, hardest card, reset stats):")
             val inputAction = logger.logAndSend(readLine()!!)
             performAction(inputAction)
-
         }
     }
 }
 
-fun main() {
-    val game = Main()
+fun main(args: Array<String>) {
+    val game = Main(args)
     game.gameLoop()
 }
