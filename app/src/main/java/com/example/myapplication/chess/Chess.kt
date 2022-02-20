@@ -4,6 +4,10 @@ enum class ChessColor(val colorChar: Char) {
     WHITE('W'), BLACK('B')
 }
 
+enum class GameState {
+    RUNNING, STALEMATE, WINNER, ABORTED;
+}
+
 enum class ChessRank(val rankInt: Int) {
     EIGHTH(8),
     SEVENTH(7),
@@ -36,12 +40,51 @@ open class ChessPiece(var chessRank: ChessRank, var chessFile: ChessFile, val co
 
 class Pawn(chessRank: ChessRank, chessFile: ChessFile, color: ChessColor): ChessPiece(chessRank, chessFile, color)
 
+class Chess(val player_names: List<String>) {
+    val board = ChessBoard()
+    var gameState: GameState = GameState.RUNNING
+    val chessRegexPattern = Regex("[a-h][1-8][a-h][1-8]")
+
+    fun setupGame() {
+        // Ask who is starting
+        // println("Who is starting? Type \'0\' for ${player_names[0]} and \'1\' for ${player_names[1]}")
+        // if (readLine()!!.toInt() == 1) {
+        //      val temp = player_names[0]
+        //      player_names[0] = player_names[1]
+        //      player_names[1] = temp
+        // }
+
+        board.resetBoard()
+
+    }
+
+    fun gameLoop() {
+        gameloop@while (gameState == GameState.RUNNING) {
+            for (player in player_names)
+                while (true) {
+                    println("$player's turn:")
+                    val chessInput = readLine()!!
+                    if (chessInput.lowercase() == "exit") {
+                        gameState = GameState.ABORTED
+                        println("Bye!")
+                        break@gameloop
+                    }
+                    if (chessRegexPattern.matches(chessInput.lowercase())) {
+                        // Do stuff
+                        break
+                    } else {
+                        println("Invalid Input")
+                    }
+                }
+
+        }
+    }
+}
+
+
 class ChessBoard(val pawnOnly: Boolean = true) {
     val separator = "  +---+---+---+---+---+---+---+---+"
     val board = List(8){MutableList<ChessPiece?>(8){null}}
-    init {
-
-    }
 
     fun resetBoard() {
         if (pawnOnly) {
@@ -76,7 +119,12 @@ class ChessBoard(val pawnOnly: Boolean = true) {
 
 fun main() {
     println("Pawns-Only Chess")
-    val chess = ChessBoard()
-    chess.resetBoard()
-    chess.printBoard()
+    println("First Player's name:")
+    val player_one = readLine()!!
+    println("Second Player's name:")
+    val player_two = readLine()!!
+    val player_names = listOf(player_one, player_two)
+    val chess = Chess(player_names)
+    chess.setupGame()
+    chess.gameLoop()
 }
