@@ -1,7 +1,13 @@
 package com.example.myapplication.chess
 
-enum class ChessColor(val colorChar: Char) {
-    WHITE('W'), BLACK('B')
+enum class ChessColor(val colorChar: Char, val colorName: String) {
+    WHITE('W', "white"), BLACK('B', "black");
+
+    companion object {
+        fun getChessColorName(x: ChessColor): String {
+            return x.name.lowercase()
+        }
+    }
 }
 
 enum class GameState {
@@ -20,6 +26,8 @@ enum class ChessRank(val rankInt: Int) {
 
     companion object {
         fun getRankByIndex(index: Int): ChessRank = values()[index]
+        fun getRankByRankInt(rank: Int): ChessRank = values().first {
+            it.rankInt == rank }
     }
 }
 
@@ -32,13 +40,56 @@ enum class ChessFile {
 
 }
 
+interface Moveable {
+    fun move()
+}
+
 open class ChessPiece(var chessRank: ChessRank, var chessFile: ChessFile, val color: ChessColor) {
     fun getColor(): String {
         return this.color.colorChar.toString()
     }
+    fun getPosition(): String {
+        return "${this.chessFile.toString().lowercase()}${this.chessRank.rankInt}"
+    }
+    open fun move(to: String) {
+        this.chessFile = ChessFile.valueOf(to[0].toString().uppercase())
+        this.chessRank = ChessRank.getRankByRankInt(to[1].digitToInt())
+    }
+
+    open fun getLegalMoves(): List<Pair<ChessFile, ChessRank>> {
+        // DO NOT USE THIS FUNCTION
+        throw Exception("Do not use super function 'getLegalMoves', inherit and override!")
+    }
+
+    companion object {
+        fun convertRankFileToPositionString(file: ChessFile, rank: ChessRank): String {
+            return "${file.name.lowercase()}${rank.rankInt}"
+        }
+    }
 }
 
-class Pawn(chessRank: ChessRank, chessFile: ChessFile, color: ChessColor): ChessPiece(chessRank, chessFile, color)
+class Pawn(chessRank: ChessRank, chessFile: ChessFile, color: ChessColor): ChessPiece(chessRank, chessFile, color) {
+    var notMoved = true
+
+    override fun getLegalMoves(): List<Pair<ChessFile, ChessRank>> {
+        val legalMoves = mutableListOf<Pair<ChessFile,ChessRank>>()
+        val file = this.chessFile
+        val rank = this.chessRank
+        if (this.color == ChessColor.BLACK) {
+            if (notMoved) {
+                legalMoves.add(Pair(file, ChessRank.getRankByRankInt(rank.rankInt - 2)))
+            }
+            legalMoves.add(Pair(file, ChessRank.getRankByRankInt(rank.rankInt - 1)))
+        } else {
+            if (notMoved) {
+                legalMoves.add(Pair(file, ChessRank.getRankByRankInt(rank.rankInt + 2)))
+            }
+            legalMoves.add(Pair(file, ChessRank.getRankByRankInt(rank.rankInt + 1)))
+        }
+        return legalMoves
+
+    }
+}
 
 class Chess(val player_names: List<String>) {
     val board = ChessBoard()
@@ -59,10 +110,12 @@ class Chess(val player_names: List<String>) {
     }
 
     fun gameLoop() {
+        val playerColor: List<ChessColor> = listOf(ChessColor.WHITE, ChessColor.BLACK)
         gameloop@while (gameState == GameState.RUNNING) {
-            for (player in player_names)
+            for (i in player_names.indices) {
+                board.printBoard()
                 while (true) {
-                    println("$player's turn:")
+                    println("${player_names[i]}'s turn:")
                     val chessInput = readLine()!!
                     if (chessInput.lowercase() == "exit") {
                         gameState = GameState.ABORTED
@@ -71,15 +124,41 @@ class Chess(val player_names: List<String>) {
                     }
                     if (chessRegexPattern.matches(chessInput.lowercase())) {
                         // Do stuff
+                        val from = chessInput.substring(0, 2)
+                        val to = chessInput.substring(2)
+                        val piece = board.getPieceOrNull(from)
+                        if (piece == null) {
+                            println("No ${listOf("white","black")[i]} Pawn at $from")
+                            continue
+                        }
+                        if (piece.color != playerColor[i]) {
+                            println("No ${listOf("white","black")[i]} Pawn at $from")
+                            continue
+                        }
+                        try {
+                            board.movePiece(piece, to)
+                        } catch (e: IllegalMoveException) {
+                            printInvalidMove()
+                            continue
+                        }
+
                         break
                     } else {
-                        println("Invalid Input")
+                        printInvalidMove()
+                        continue
                     }
                 }
+            }
 
         }
     }
+
+    fun printInvalidMove() {
+        println("Invalid Input")
+    }
 }
+
+class IllegalMoveException: Exception("Move not possible")
 
 
 class ChessBoard(val pawnOnly: Boolean = true) {
@@ -114,6 +193,42 @@ class ChessBoard(val pawnOnly: Boolean = true) {
         print("    ")
         print(ChessFile.values().joinToString("   ") { it.toString().lowercase() })
         println("  ")
+    }
+
+    fun movePiece(piece: ChessPiece, to: String) {
+        // to ist alles von a1 bis h8
+        if (getPieceOrNull(to) == null) {
+            val legalMoves = piece.getLegalMoves()
+            val filteredLegalMoves = legalMoves.filter(checkIfValidLegalMove())
+            val mappedFilteredLegalMoves = filteredLegalMoves.map{ChessPiece.convertRankFileToPositionString(it.first,it.second)}
+            if (to !in mappedFilteredLegalMoves) {
+                throw IllegalMoveException()
+            }
+            board[piece.chessRank.ordinal][piece.chessFile.ordinal] = null
+            piece.move(to)
+            if (piece is Pawn) {
+                piece.notMoved = false
+            }
+            val file = ChessFile.valueOf(to[0].toString().uppercase())
+            val rank = ChessRank.getRankByRankInt(to[1].digitToInt())
+            board[rank.ordinal][file.ordinal] = piece
+        } else {
+            throw IllegalMoveException()
+        }
+    }
+
+    fun checkIfValidLegalMove(): (Pair<ChessFile, ChessRank>) -> Boolean = {
+        val position = ChessPiece.convertRankFileToPositionString(it.first, it.second)
+        val x = ChessFile.valueOf(position[0].uppercase()).ordinal
+        val y = ChessRank.getRankByRankInt(position[1].digitToInt()).ordinal
+        print(board[y][x]?.chessFile.toString() + " " + board[y][x]?.chessRank.toString())
+        board[y][x] == null
+    }
+
+    fun getPieceOrNull(position: String): ChessPiece? {
+        val file = ChessFile.valueOf(position[0].toString().uppercase())
+        val rank = ChessRank.getRankByRankInt(position[1].digitToInt())
+        return board[rank.ordinal][file.ordinal]
     }
 }
 
