@@ -4,7 +4,7 @@ import kotlin.math.abs
 
 
 enum class ChessColor(val colorChar: Char, val colorName: String) {
-    WHITE('W', "white"), BLACK('B', "black");
+    WHITE('W', "White"), BLACK('B', "Black");
 
     companion object {
         fun getChessColorName(x: ChessColor): String {
@@ -141,13 +141,10 @@ class Pawn(chessRank: ChessRank, chessFile: ChessFile, color: ChessColor): Chess
             if (!moved) {
                 val doubleMove = Pair(file, ChessRank.getRankByIndex(ChessColor.additionByColor(rank.ordinal, 2, this.color)))
                 if (board.checkIfValidLegalMove(doubleMove)) {
-                    legalMoves.add(singleMove as Pair<ChessFile, ChessRank>)
                     legalMoves.add(doubleMove as Pair<ChessFile, ChessRank>)
                 }
-            } else {
-                legalMoves.add(singleMove as Pair<ChessFile, ChessRank>)
             }
-
+            legalMoves.add(singleMove as Pair<ChessFile, ChessRank>)
         }
         return legalMoves
     }
@@ -208,8 +205,9 @@ class Chess(val player_names: List<String>) {
     var gameState: GameState = GameState.RUNNING
     val chessRegexPattern = Regex("[a-h][1-8][a-h][1-8]")
     val moveHistory: MutableList<String> = mutableListOf()
-    var moveNumber = 1
+    var moveNumber = 0
     val enPassantValid = mutableMapOf<Pawn, Int>()
+    var winner: ChessColor? = null
 
     fun setupGame() {
         // Ask who is starting
@@ -238,16 +236,15 @@ class Chess(val player_names: List<String>) {
         val playerColor: List<ChessColor> = listOf(ChessColor.WHITE, ChessColor.BLACK)
 
         gameloop@while (gameState == GameState.RUNNING) {
+            moveNumber++
             for (i in player_names.indices) {
                 enPassantExpired()
-                board.printBoard()
                 while (true) {
                     // Ask for player input
                     println("${player_names[i]}'s turn:")
                     val chessInput = readLine()!!
                     if (chessInput.lowercase() == "exit") {
                         gameState = GameState.ABORTED
-                        println("Bye!")
                         break@gameloop
                     }
 
@@ -274,21 +271,80 @@ class Chess(val player_names: List<String>) {
                             continue
                         }
                         when (performedAction) {
-                            Action.MOVED -> {
-                                moveHistory.add("$from$to")
-                            }
                             Action.CAPTURED -> moveHistory.add("${from}x$to")
+                            else -> moveHistory.add("$from$to")
                         }
+                        board.printBoard()
                         checkDoubleMove()
-                        break
+                        val promoted = isLastRankReached(playerColor[i])
+                        val allCaptured = isAllCaptured()
+                        val stalemated = isStalemate()
+                        if (promoted || allCaptured) {
+                            gameState = GameState.WINNER
+                            winner = playerColor[i]
+                            break@gameloop
+                        } else if (stalemated) {
+                            gameState = GameState.STALEMATE
+                            break@gameloop
+                        } else {
+                            break
+                        }
+
                     } else {
                         printInvalidMove()
                         continue
                     }
                 }
-                moveNumber++
             }
 
+        }
+        if (gameState == GameState.WINNER) {
+            println("${winner?.colorName} Wins!")
+        } else if (gameState == GameState.STALEMATE) {
+            println("Stalemate!")
+        }
+    }
+
+
+
+    private fun isAllCaptured(): Boolean {
+        val allPawns = board.board.flatMap { it.toList() }.filterNotNull().filterIsInstance<Pawn>()
+        val (whitePawns, blackPawns) = allPawns.partition { it.color == ChessColor.WHITE }
+        return when {
+            whitePawns.isEmpty() -> true
+            blackPawns.isEmpty() -> true
+            else -> false
+        }
+    }
+
+    private fun isStalemate(): Boolean {
+        val allPawns = board.board.flatMap { it.toList() }.filterNotNull().filterIsInstance<Pawn>()
+        val (whitePawns, blackPawns) = allPawns.partition{ it.color == ChessColor.WHITE }
+        val whiteMoves = whitePawns.flatMap { it.getLegalMoves(board) }.isEmpty()
+        val whiteAttacks = whitePawns.flatMap { it.getLegalAttacks(board) }.isEmpty()
+        val whitePassants = whitePawns.flatMap { it.getLegalPassants(board) }.isEmpty()
+        val blackMoves = blackPawns.flatMap { it.getLegalMoves(board) }.isEmpty()
+        val blackAttacks = blackPawns.flatMap { it.getLegalAttacks(board) }.isEmpty()
+        val blackPassants = blackPawns.flatMap { it.getLegalPassants(board) }.isEmpty()
+
+
+        return when {
+            whiteMoves && whiteAttacks && whitePassants -> true
+            blackMoves && blackAttacks && blackPassants -> true
+            else -> false
+        }
+    }
+
+    private fun isLastRankReached(currentTurnColor: ChessColor): Boolean {
+        val allPawns = board.board.flatMap { it.toList() }.filterNotNull().filterIsInstance<Pawn>()
+        val ownPawns = allPawns.filter { it.color == currentTurnColor }
+        return when (currentTurnColor) {
+            ChessColor.WHITE -> {
+                ownPawns.any { it.chessRank == ChessRank.EIGHTH }
+            }
+            ChessColor.BLACK -> {
+                ownPawns.any {it.chessRank == ChessRank.FIRST}
+            }
         }
     }
 
@@ -383,7 +439,6 @@ class ChessBoard(val pawnOnly: Boolean = true) {
         if (getPieceOrNull(to) == null) {
             // Get all possible moves
             val legalMoves = piece.getLegalMoves(this)
-
             // Convert then to the positional string
             val mappedFilteredLegalMoves = legalMoves.map{ChessPiece.convertRankFileToPosition(it.first,it.second)}.filter{it != "empty"}
 
@@ -437,21 +492,18 @@ class ChessBoard(val pawnOnly: Boolean = true) {
 
     }
 
-    fun isOccupied(x: Pair<ChessFile?, ChessRank?>): Boolean {
-        return !checkIfValidLegalMove(x)
-    }
-
     fun checkIfValidLegalMove(coordinates: Pair<ChessFile?, ChessRank?>): Boolean {
         val position = ChessPiece.convertRankFileToPosition(coordinates.first, coordinates.second)
         if (position == "empty") {
             return false
         }
-        val x = ChessFile.valueOf(position[0].uppercase()).ordinal
-        val y = ChessRank.getRankByRankInt(position[1].digitToInt())!!.ordinal
+        val (x,y) = ChessPiece.convertPositionToRankFile(position)
+        val file = x.ordinal
+        val rank = y.ordinal
         if (coordinates.first == null || coordinates.second == null) {
             return false
         }
-        return board[y][x] == null
+        return board[rank][file] == null
     }
 
     fun getPieceOrNull(position: String): ChessPiece? {
@@ -473,5 +525,7 @@ fun main() {
     val player_names = listOf(player_one, player_two)
     val chess = Chess(player_names)
     chess.setupGame()
+    chess.board.printBoard()
     chess.gameLoop()
+    println("Bye!")
 }
